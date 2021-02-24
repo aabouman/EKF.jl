@@ -3,34 +3,83 @@ module EKF
 using LinearAlgebra
 using ForwardDiff: jacobian
 
-export ExtendedKalmanFilter, estimateState
+export ExtendedKalmanFilter, estimateState, simulate
 
-#
+@doc raw"""
+`struct ExtendedKalmanFilter{T}`
+
+Extended Kalman Filter struct. Stores the dynamics and measurement functions as
+well as their cooresponding covariances.
+
+# Arguments
+- `Q::AbstractArray{T}`: Dynamics noise covariance matrix, must be symmetric
+- `R::AbstractArray{T}`: Measurement noise covariance matrix, must be symmetric
+- `process::Function`: dynamics function, steps the system forward
+- `measure::Function`: measurement function
+
+The `process` and `measure` function have the following forms:
+
+```julia
+function process(state::AbstractVector, input::AbstractVector)
+    ...
+    return new_state
+end
+```
+
+```julia
+function measure(state::AbstractVector)
+    ...
+    return [θ₁, θ₂]
+end
+```
+"""
 struct ExtendedKalmanFilter{T}
     Q::AbstractArray{T}     # Dynamics Noise Covariance
     R::AbstractArray{T}     # Measurement Noise Covariance
     process::Function          # Dynamics Function
     measure::Function       # Measurement Function
-    # ∂f_∂x::Function
-    # ∂h_∂x::Function
 
     function ExtendedKalmanFilter(Q::AbstractArray{T}, R::AbstractArray{T},
                                   process::Function, measure::Function) where T
         issymmetric(Q) || throw(ArgumentError("Dynamics noise covariance Matrix, Q, must be symmetric."))
         issymmetric(R) || throw(ArgumentError("Measurement noise covariance Matrix, R, must be symmetric."))
 
-        # ∂f_∂x(est_state, input) = jacobian(state->process(state, input),
-        #                                    est_state)
-        # ∂h_∂x(est_state) = jacobian(state->ekf.measure(state), est_state)
-
-        new{T}(Q, R, process, measure,
-               # ∂f_∂x, ∂h_∂x
-               )
+        new{T}(Q, R, process, measure, )
     end
 end
 
 
-#
+@doc raw"""
+`estimateState(est_state::AbstractArray{T}, input::AbstractArray{T},
+               measurement::AbstractArray{T}, errorCov::AbstractArray{T},
+               ekf::ExtendedKalmanFilter{T}) where T`
+
+Estimate the state of the system specified by `ekf`. Returns the new state at
+time step ``i+1``
+
+# Arguments
+- `est_state::AbstractArray{T}`: Estimated state at time step ``i``
+- `input::AbstractArray{T}`: Control input at time step ``i``
+- `measurement::AbstractArray{T}`: Measurment of state at time step ``i``
+- `errorCov::AbstractArray{T}`: Covariance error
+- `ekf::ExtendedKalmanFilter{T}`: ExtendedKalmanFilter struct specifying the dynamics and process aswell as their covariances
+
+The `process` and `measure` function have the following forms:
+
+```julia
+function process(state::AbstractVector, input::AbstractVector)
+    ...
+    return new_state
+end
+```
+
+```julia
+function measure(state::AbstractVector)
+    ...
+    return [θ₁, θ₂]
+end
+```
+"""
 function estimateState(est_state::AbstractArray{T}, input::AbstractArray{T},
                        measurement::AbstractArray{T}, errorCov::AbstractArray{T},
                        ekf::ExtendedKalmanFilter{T}) where T
@@ -64,9 +113,26 @@ function estimateState(est_state::AbstractArray{T}, input::AbstractArray{T},
 end
 
 
+@doc raw"""
+`simulate(initState::AbstractArray, initEstimate::AbstractArray,
+          errorCov::AbstractArray, inputs::AbstractArray,
+          numSteps::Int64, ekf::ExtendedKalmanFilter)`
+
+Simulates the system specified by `ekf::ExtendedKalmanFilter` over time horizon.
+
+# Arguments
+- `initState::AbstractArray`: Inital state at time step `0`
+- `initEstimate::AbstractArray`: Inital "guess" of the state at time step `0`
+- `errorCov::AbstractArray`: Error covariances at each time step
+- `inputs::AbstractArray`: List of inputs for each time step
+- `numSteps::Int64`: Covariance error
+- `ekf::ExtendedKalmanFilter`: ExtendedKalmanFilter struct specifying the dynamics and process as well as their covariances
+
+
+"""
 function simulate(initState::AbstractArray, initEstimate::AbstractArray,
                   errorCov::AbstractArray, inputs::AbstractArray,
-                  numSteps, ekf::ExtendedKalmanFilter)
+                  numSteps::Int64, ekf::ExtendedKalmanFilter)
     state = initState
     est_state = initEstimate
 
