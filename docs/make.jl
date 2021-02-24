@@ -1,5 +1,6 @@
-using Documenter, EKF
+using Literate, Documenter, EKF
 
+Literate.markdown("examples/SimpleExample.jl", "src/"; documenter=true)
 
 Documenter.makedocs(
     sitename = "EKF.jl",
@@ -10,6 +11,7 @@ Documenter.makedocs(
     # repo = "https://github.com/aabouman/EKF.jl",
     modules = [EKF],
     pages = ["Home" => "index.md",
+             "Example" => "SimpleExample.md",
              "Documentation" => "documentation.md"
              ]
 )

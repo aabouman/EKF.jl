@@ -79,6 +79,8 @@ function measure(state::AbstractVector)
     return [θ₁, θ₂]
 end
 ```
+
+Both of these functions must be differentiable using the `ForwardDiff` package.
 """
 function estimateState(est_state::AbstractArray{T}, input::AbstractArray{T},
                        measurement::AbstractArray{T}, errorCov::AbstractArray{T},
@@ -94,13 +96,11 @@ function estimateState(est_state::AbstractArray{T}, input::AbstractArray{T},
     x̂ₖ₋₁⁺ = est_state; uₖ₋₁ = input;
     zₖ = measurement; Pₖ₋₁⁺ = errorCov;
 
-    # Fₖ₋₁ = ekf.∂f_∂x(x̂ₖ₋₁⁺, uₖ₋₁)
     Fₖ₋₁ = ∂f_∂x(x̂ₖ₋₁⁺, uₖ₋₁)
     x̂ₖ⁻ = ekf.process(x̂ₖ₋₁⁺, uₖ₋₁)
 
     Pₖ⁻ = Fₖ₋₁ * Pₖ₋₁⁺ * transpose(Fₖ₋₁) + ekf.Q
 
-    # Hₖ = ekf.∂h_∂x(x̂ₖ⁻)
     Hₖ = ∂h_∂x(x̂ₖ⁻)
     Kₖ = Pₖ⁻ * transpose(Hₖ) * inv(Hₖ * Pₖ⁻ * transpose(Hₖ) + ekf.R)
 
@@ -132,17 +132,28 @@ Simulates the system specified by `ekf::ExtendedKalmanFilter` over time horizon.
 """
 function simulate(initState::AbstractArray, initEstimate::AbstractArray,
                   errorCov::AbstractArray, inputs::AbstractArray,
-                  numSteps::Int64, ekf::ExtendedKalmanFilter)
+                  # numSteps::Int64,
+                  ekf::ExtendedKalmanFilter)
+    numStates = length(initState)
+    numSteps = size(inputs)[1]
     state = initState
     est_state = initEstimate
 
+    θ̄s = zeros(numSteps+1, numStates)
+    θ̄s[1,:] .= state
+    θ̂s = zeros(numSteps, numStates)
+
+
     for t = 1:numSteps
-        state = ekf.process(state, inputs[t])
-        measurement = ekf.measure(state, inputs[t])
-        est_state, errorCov = estimate(est_state, [ext_wrench[t]],
-                                       measurement, errorCov, ekf)
-        θ̂s[t] = est_state[1];
+        state = ekf.process(state, inputs[t,:])
+        measurement = ekf.measure(state)
+        est_state, errorCov = estimateState(est_state, inputs[t,:],
+                                            measurement, errorCov, ekf)
+        θ̄s[t+1,:] .= state
+        θ̂s[t,:] .= est_state[1];
     end
+
+    return (θ̄s, θ̂s)
 end
 
 end # module
