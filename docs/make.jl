@@ -1,6 +1,6 @@
 using Literate, Documenter, EKF
 
-Literate.markdown("examples/SimpleExample.jl", "src/"; documenter=true)
+# Literate.markdown("examples/SimpleExample.jl", "src/"; documenter=true)
 
 Documenter.makedocs(
     sitename = "EKF.jl",
