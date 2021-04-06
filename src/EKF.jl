@@ -1,7 +1,8 @@
 module EKF
 
-using LinearAlgebra
+using LinearAlgebra: inv, I, issymmetric, isposdef
 using ForwardDiff: jacobian
+using Distributions: MvNormal
 
 export ExtendedKalmanFilter, estimateState, simulate
 
@@ -34,17 +35,25 @@ end
 ```
 """
 struct ExtendedKalmanFilter{T}
+    n::Int64                # Number of state variables
+    m::Int64                # Number of input variables
     Q::AbstractArray{T}     # Dynamics Noise Covariance
     R::AbstractArray{T}     # Measurement Noise Covariance
-    process::Function          # Dynamics Function
+    process::Function       # Dynamics Function
     measure::Function       # Measurement Function
 
-    function ExtendedKalmanFilter(Q::AbstractArray{T}, R::AbstractArray{T},
+    function ExtendedKalmanFilter(Q::AbstractMatrix{T}, R::AbstractMatrix{T},
                                   process::Function, measure::Function) where T
         issymmetric(Q) || throw(ArgumentError("Dynamics noise covariance Matrix, Q, must be symmetric."))
         issymmetric(R) || throw(ArgumentError("Measurement noise covariance Matrix, R, must be symmetric."))
 
-        new{T}(Q, R, process, measure, )
+        isposdef(Q) || throw(ArgumentError("Dynamics noise covariance Matrix, Q, must be positive semi-definite."))
+        isposdef(R) || throw(ArgumentError("Measurement noise covariance Matrix, R, must be positive semi-definite."))
+
+        n = size(Q)[1]
+        m = size(R)[1]
+
+        new{T}(n, m, Q, R, process, measure, )
     end
 end
 
@@ -132,21 +141,23 @@ Simulates the system specified by `ekf::ExtendedKalmanFilter` over time horizon.
 """
 function simulate(initState::AbstractArray, initEstimate::AbstractArray,
                   errorCov::AbstractArray, inputs::AbstractArray,
-                  # numSteps::Int64,
                   ekf::ExtendedKalmanFilter)
     numStates = length(initState)
     numSteps = size(inputs)[1]
     state = initState
     est_state = initEstimate
 
-    θ̄s = zeros(numSteps+1, numStates)
+    θ̄s = zeros(numSteps+1, ekf.n)
     θ̄s[1,:] .= state
-    θ̂s = zeros(numSteps, numStates)
+    θ̂s = zeros(numSteps, ekf.n)
 
+    # Build disturbance distributions
+    process_noise_dist = MvNormal(ekf.Q)
+    measure_noise_dist = MvNormal(ekf.R)
 
     for t = 1:numSteps
-        state = ekf.process(state, inputs[t,:])
-        measurement = ekf.measure(state)
+        state = ekf.process(state, inputs[t,:]) + reshape(rand(process_noise_dist, 1), ekf.n)
+        measurement = ekf.measure(state) + reshape(rand(measure_noise_dist, 1), ekf.m)
         est_state, errorCov = estimateState(est_state, inputs[t,:],
                                             measurement, errorCov, ekf)
         θ̄s[t+1,:] .= state
