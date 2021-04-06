@@ -5,7 +5,7 @@
 
 # %%
 # PKG_SETUP
-import Pkg; Pkg.activate(@__DIR__); Pkg.instantiate();
+import Pkg; Pkg.activate(joinpath(@__DIR__,"../..")); Pkg.instantiate();
 
 # %%
 # ## Extened Kalman Filter Example
@@ -34,7 +34,7 @@ end
 # %%
 # ### Defining The Covariances
 Q = Matrix(Diagonal([1e-10, .1, 1e-10, .1]))
-R = Matrix(Diagonal([.5^2, 0.005^2]));
+R = Matrix(Diagonal([.5^2, 0.05^2]));
 
 # %%
 ekf = ExtendedKalmanFilter(Q, R, process, measure);

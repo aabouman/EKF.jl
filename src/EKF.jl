@@ -139,9 +139,16 @@ Simulates the system specified by `ekf::ExtendedKalmanFilter` over time horizon.
 
 
 """
-function simulate(initState::AbstractArray, initEstimate::AbstractArray,
-                  errorCov::AbstractArray, inputs::AbstractArray,
+function simulate(initState::Matrix, initEstimate::Matrix,
+                  errorCov::Matrix, inputs::Matrix,
                   ekf::ExtendedKalmanFilter)
+    all(size(initState) .== (ekf.n, ekf.n)) || throw(ArgumentError(""))
+    all(size(initState) .== size(initEstimate)) || throw(ArgumentError(""))
+    size(inputs)[end] == ekf.m || throw(ArgumentError(""))
+    issymmetric(errorCov) || throw(ArgumentError("Dynamics noise covariance Matrix, errorCov, must be symmetric."))
+    isposdef(errorCov) || throw(ArgumentError("Dynamics noise covariance Matrix, errorCov, must be positive semi-definite."))
+
+
     numStates = length(initState)
     numSteps = size(inputs)[1]
     state = initState
