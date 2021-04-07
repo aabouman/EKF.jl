@@ -13,8 +13,10 @@ Extended Kalman Filter struct. Stores the dynamics and measurement functions as
 well as their cooresponding covariances.
 
 # Arguments
-- `Q::AbstractArray{T}`: Dynamics noise covariance matrix, must be symmetric
-- `R::AbstractArray{T}`: Measurement noise covariance matrix, must be symmetric
+- `n::Int64`: Number of state variables
+- `m::Int64`: Number of input variables
+- `Q::Vector{T}`: Dynamics noise covariance matrix, must be symmetric
+- `R::Vector{T}`: Measurement noise covariance matrix, must be symmetric
 - `process::Function`: dynamics function, steps the system forward
 - `measure::Function`: measurement function
 
@@ -37,12 +39,12 @@ end
 struct ExtendedKalmanFilter{T}
     n::Int64                # Number of state variables
     m::Int64                # Number of input variables
-    Q::AbstractArray{T}     # Dynamics Noise Covariance
-    R::AbstractArray{T}     # Measurement Noise Covariance
+    Q::Matrix{T}            # Dynamics Noise Covariance
+    R::Matrix{T}            # Measurement Noise Covariance
     process::Function       # Dynamics Function
     measure::Function       # Measurement Function
 
-    function ExtendedKalmanFilter(Q::AbstractMatrix{T}, R::AbstractMatrix{T},
+    function ExtendedKalmanFilter(Q::Matrix{T}, R::Matrix{T},
                                   process::Function, measure::Function) where T
         issymmetric(Q) || throw(ArgumentError("Dynamics noise covariance Matrix, Q, must be symmetric."))
         issymmetric(R) || throw(ArgumentError("Measurement noise covariance Matrix, R, must be symmetric."))
@@ -67,10 +69,10 @@ Estimate the state of the system specified by `ekf`. Returns the new state at
 time step ``i+1``
 
 # Arguments
-- `est_state::AbstractArray{T}`: Estimated state at time step ``i``
-- `input::AbstractArray{T}`: Control input at time step ``i``
-- `measurement::AbstractArray{T}`: Measurment of state at time step ``i``
-- `errorCov::AbstractArray{T}`: Covariance error
+- `est_state::Vector{T}`: Estimated state at time step ``i``
+- `input::Vector{T}`: Control input at time step ``i``
+- `measurement::Vector{T}`: Measurment of state at time step ``i``
+- `errorCov::Matrix{T}`: Covariance error
 - `ekf::ExtendedKalmanFilter{T}`: ExtendedKalmanFilter struct specifying the dynamics and process aswell as their covariances
 
 The `process` and `measure` function have the following forms:
@@ -91,8 +93,8 @@ end
 
 Both of these functions must be differentiable using the `ForwardDiff` package.
 """
-function estimateState(est_state::AbstractArray{T}, input::AbstractArray{T},
-                       measurement::AbstractArray{T}, errorCov::AbstractArray{T},
+function estimateState(est_state::Vector{T}, input::Vector{T},
+                       measurement::Vector{T}, errorCov::Matrix{T},
                        ekf::ExtendedKalmanFilter{T}) where T
     ∂f_∂x(est_state, input) = jacobian(state->ekf.process(state, input),
                                        est_state)
@@ -123,31 +125,30 @@ end
 
 
 @doc raw"""
-`simulate(initState::AbstractArray, initEstimate::AbstractArray,
-          errorCov::AbstractArray, inputs::AbstractArray,
-          numSteps::Int64, ekf::ExtendedKalmanFilter)`
+`simulate(initState::Vector{T}, initEstimate::Vector{T},
+          errorCov::Matrix{T}, inputs::Matrix{T},
+          ekf::ExtendedKalmanFilter)`
 
 Simulates the system specified by `ekf::ExtendedKalmanFilter` over time horizon.
 
 # Arguments
-- `initState::AbstractArray`: Inital state at time step `0`
-- `initEstimate::AbstractArray`: Inital "guess" of the state at time step `0`
-- `errorCov::AbstractArray`: Error covariances at each time step
-- `inputs::AbstractArray`: List of inputs for each time step
-- `numSteps::Int64`: Covariance error
-- `ekf::ExtendedKalmanFilter`: ExtendedKalmanFilter struct specifying the dynamics and process as well as their covariances
-
-
+- `initState::Vector`: Inital state at time step `0`
+- `initEstimate::Vector`: Inital "guess" of the state at time step `0`
+- `errorCov::Matrix`: Error covariances at each time step
+- `inputs::Matrix`: List of inputs for each time step
+- `ekf::ExtendedKalmanFilter`: ExtendedKalmanFilter struct specifying the dynamics
+                               and process as well as their covariances
 """
-function simulate(initState::Matrix, initEstimate::Matrix,
-                  errorCov::Matrix, inputs::Matrix,
-                  ekf::ExtendedKalmanFilter)
-    all(size(initState) .== (ekf.n, ekf.n)) || throw(ArgumentError(""))
+function simulate(initState::Vector{T}, initEstimate::Vector{T},
+                  errorCov::Matrix{T}, inputs::Matrix{T},
+                  ekf::ExtendedKalmanFilter{T}) where T
+    all(size(initState) .== (ekf.n, )) || throw(ArgumentError(""))
+    all(size(initState) .== size(initEstimate)) || throw(ArgumentError(""))
     all(size(initState) .== size(initEstimate)) || throw(ArgumentError(""))
     size(inputs)[end] == ekf.m || throw(ArgumentError(""))
+    all(size(errorCov) .== (ekf.n, ekf.n)) || throw(ArgumentError(""))
     issymmetric(errorCov) || throw(ArgumentError("Dynamics noise covariance Matrix, errorCov, must be symmetric."))
     isposdef(errorCov) || throw(ArgumentError("Dynamics noise covariance Matrix, errorCov, must be positive semi-definite."))
-
 
     numStates = length(initState)
     numSteps = size(inputs)[1]
@@ -164,6 +165,7 @@ function simulate(initState::Matrix, initEstimate::Matrix,
 
     for t = 1:numSteps
         state = ekf.process(state, inputs[t,:]) + reshape(rand(process_noise_dist, 1), ekf.n)
+
         measurement = ekf.measure(state) + reshape(rand(measure_noise_dist, 1), ekf.m)
         est_state, errorCov = estimateState(est_state, inputs[t,:],
                                             measurement, errorCov, ekf)
